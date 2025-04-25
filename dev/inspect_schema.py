@@ -1,16 +1,27 @@
-# dev/inspect_schema.py
+# dev/inspect_db_schema.py
+
 import sqlite3
-from db.db import DB_PATH
+import pandas as pd
+from db.db import DB_PATH  # путь к your_database.db
 
-conn = sqlite3.connect(DB_PATH)
-cursor = conn.cursor()
+def main():
+    # Подключаемся к базе
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        # Читаем названия всех таблиц
+        tables_df = pd.read_sql_query(
+            "SELECT name AS table_name "
+            "FROM sqlite_master "
+            "WHERE type='table' "
+            "ORDER BY name;",
+            conn
+        )
+    finally:
+        conn.close()
 
-# Получаем схему таблицы Schedule_lessons
-cursor.execute("PRAGMA table_info(Schedule_lessons);")
-columns = cursor.fetchall()
+    # Выводим результат
+    print("\n📋 Список таблиц в БД:\n")
+    print(tables_df.to_string(index=False))
 
-print("📋 Поля таблицы Schedule_lessons:")
-for col in columns:
-    print(col)
-
-conn.close()
+if __name__ == "__main__":
+    main()

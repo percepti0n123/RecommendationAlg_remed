@@ -13,7 +13,7 @@ def create_data():
     import os
 
     """Создает базу данных с улучшенной структурой и заполняет её данными."""
-    conn = sqlite3.connect('your_database.db')
+    conn = sqlite3.connect('../your_database.db')
     cursor = conn.cursor()
     try:
         # Таблицы для преподавателей, курсов, разделов и т.п.
@@ -202,6 +202,30 @@ def create_data():
             );
         ''')
 
+        # --- Новая таблица для хранения анкеты (расширенная Forms) ---
+        cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS Questionnaire (
+                        student_id INTEGER PRIMARY KEY,
+                        desired_score INTEGER NOT NULL,
+                        weekly_hours REAL NOT NULL,
+                        topic_preferences TEXT,  -- CSV списка из Section.description или Themes.name
+                        start_date DATE,
+                        FOREIGN KEY (student_id) REFERENCES Students(id)
+                    );
+                ''')
+
+        # --- Универсальный план подготовки: порядок прохождения section_id для каждого курса ---
+        cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS UniversalPlan (
+                        course_id INTEGER,
+                        section_id INTEGER,
+                        order_num INTEGER,
+                        PRIMARY KEY(course_id, section_id),
+                        FOREIGN KEY(course_id) REFERENCES Course(id),
+                        FOREIGN KEY(section_id) REFERENCES Section(id)
+                    );
+                ''')
+
         # Новая таблица для отслеживания прогресса по темам у студентов
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS StudentThemeProgress (
@@ -263,7 +287,7 @@ def get_complexity(theme_name, section_id):
     return base
 
 def insert_data():
-    conn = sqlite3.connect('your_database.db')
+    conn = sqlite3.connect('../your_database.db')
     cursor = conn.cursor()
 
     cursor.executemany("INSERT OR IGNORE INTO Teacher (id, name, phone_number, email) VALUES (?, ?, ?, ?)", [
@@ -696,8 +720,28 @@ def insert_data():
     conn.commit()
     conn.close()
 
+def seed_universal_plan():
+    conn = sqlite3.connect('../your_database.db')
+    cursor = conn.cursor()
+    # Для курса 1 возьмём все section_id, отсортируем по сложности темы (минимальный avg complexity)
+    cursor.execute('''
+        INSERT OR IGNORE INTO UniversalPlan (course_id, section_id, order_num)
+        SELECT
+            1 AS course_id,
+            cs.section_id,
+            ROW_NUMBER() OVER (ORDER BY AVG(th.complexity) ASC) AS order_num
+        FROM Course_section cs
+        JOIN Themes th ON th.section_id = cs.section_id
+        WHERE cs.course_id = 1
+        GROUP BY cs.section_id
+        ORDER BY AVG(th.complexity) ASC;
+    ''')
+    conn.commit()
+    conn.close()
+
+
 def load_data():
-    conn = sqlite3.connect('your_database.db')
+    conn = sqlite3.connect('../your_database.db')
     # Загружаем данные в DataFrame
     students = pd.read_sql_query("SELECT * FROM Students", conn)
     tasks = pd.read_sql_query("SELECT * FROM Tasks", conn)
@@ -720,7 +764,7 @@ def load_data():
 
 def insert_test_students():
     import datetime
-    conn = sqlite3.connect('your_database.db')
+    conn = sqlite3.connect('../your_database.db')
     cursor = conn.cursor()
 
     # Добавляем тестовых студентов
@@ -769,8 +813,9 @@ if __name__ == '__main__':
     create_data()
     insert_data()
     insert_test_students()
+    seed_universal_plan()
 
 
 
 def get_connection():
-    return sqlite3.connect('your_database.db')
+    return sqlite3.connect('../your_database.db')
